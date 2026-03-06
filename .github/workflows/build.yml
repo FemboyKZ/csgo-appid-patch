@@ -64,7 +64,7 @@ jobs:
       - name: Stage release files
         run: |
           mkdir -p staging/addons/sourcemod/extensions
-          cp project/build/**/*.so staging/addons/sourcemod/extensions/
+          find project/build -name '*.so' -exec cp {} staging/addons/sourcemod/extensions/ \;
           touch staging/addons/sourcemod/extensions/csgo-appid-patch.ext.autoload
 
       - name: Upload artifact
