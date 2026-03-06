@@ -9,4 +9,4 @@
 [submodule "sourcemod"]
     path = sourcemod
     url = https://github.com/alliedmodders/sourcemod.git
-    branch = 1.13-dev
+    branch = 1.12-dev
