@@ -7,7 +7,7 @@ sourceFiles = [
   'extension.cpp',
 ]
 
-project = Extension.HL2Project(builder, projectName + '.ext')
+project = Extension.HL2Project(builder, projectName)
 
 if os.path.isfile(os.path.join(builder.currentSourcePath, 'sdk', 'smsdk_ext.cpp')):
   # Use the copy included in the project
@@ -19,7 +19,7 @@ else:
 project.sources += sourceFiles
 
 for cxx in builder.targets:
-  binary = Extension.HL2Config(builder, project, projectName + '.ext', cxx)
+  binary = Extension.HL2Config(builder, project, projectName, cxx)
   binary.compiler.linkflags += ['psapi.lib'] if cxx.target.platform == 'windows' else ['-ldl']
 
 Extension.extensions = builder.Add(project)
