@@ -61,8 +61,14 @@ jobs:
             --targets=x86
           ambuild
 
+      - name: Stage release files
+        run: |
+          mkdir -p staging/addons/sourcemod/extensions
+          cp project/build/**/*.so staging/addons/sourcemod/extensions/
+          touch staging/addons/sourcemod/extensions/csgo-appid-patch.ext.autoload
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: csgo-appid-patch-linux
-          path: project/build/**/*.so
+          path: staging/*
