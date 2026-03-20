@@ -16,8 +16,7 @@
 #else
   #include <sys/mman.h>
   #include <unistd.h>
-  #include <dlfcn.h>
-  #include <link.h>
+  #include <fcntl.h>
 #endif
 
 CCSGOSteamFix g_SteamFix;
@@ -102,36 +101,97 @@ static ModuleInfo_t GetEngineModule()
 
 #else
 
-static ModuleInfo_t g_engineInfo;
-
-static int dl_iterate_callback(struct dl_phdr_info *info, size_t, void *)
+static uintptr_t ParseHex(const char *s, const char **out)
 {
-    if (info->dlpi_name && strstr(info->dlpi_name, "engine_srv.so"))
+    uintptr_t val = 0;
+    while (*s)
     {
-        uintptr_t lo = (uintptr_t)-1, hi = 0;
-        for (int i = 0; i < info->dlpi_phnum; ++i)
+        char c = *s;
+        if (c >= '0' && c <= '9')      val = (val << 4) | (c - '0');
+        else if (c >= 'a' && c <= 'f') val = (val << 4) | (c - 'a' + 10);
+        else if (c >= 'A' && c <= 'F') val = (val << 4) | (c - 'A' + 10);
+        else break;
+        s++;
+    }
+    if (out) *out = s;
+    return val;
+}
+
+static ModuleInfo_t GetEngineModuleFromMaps(const char *needle)
+{
+    ModuleInfo_t result;
+    result.base = NULL;
+    result.size = 0;
+
+    int fd = open("/proc/self/maps", O_RDONLY);
+    if (fd < 0)
+        return result;
+
+    uintptr_t lo = (uintptr_t)-1, hi = 0;
+    bool found = false;
+
+    char buf[4096];
+    char line[512];
+    int linePos = 0;
+    ssize_t n;
+
+    while ((n = read(fd, buf, sizeof(buf))) > 0)
+    {
+        for (ssize_t i = 0; i < n; i++)
         {
-            if (info->dlpi_phdr[i].p_type == PT_LOAD)
+            if (buf[i] == '\n' || linePos >= (int)sizeof(line) - 1)
             {
-                uintptr_t segStart = info->dlpi_addr + info->dlpi_phdr[i].p_vaddr;
-                uintptr_t segEnd   = segStart + info->dlpi_phdr[i].p_memsz;
-                if (segStart < lo) lo = segStart;
-                if (segEnd   > hi) hi = segEnd;
+                line[linePos] = '\0';
+                if (strstr(line, needle))
+                {
+                    found = true;
+                    const char *p = line;
+                    uintptr_t start = ParseHex(p, &p);
+                    if (*p == '-')
+                    {
+                        p++;
+                        uintptr_t end = ParseHex(p, &p);
+                        if (start < lo) lo = start;
+                        if (end   > hi) hi = end;
+                    }
+                }
+                linePos = 0;
+            }
+            else
+            {
+                line[linePos++] = buf[i];
             }
         }
-        g_engineInfo.base = (void *)lo;
-        g_engineInfo.size = (size_t)(hi - lo);
-        return 1;
     }
-    return 0;
+    close(fd);
+
+    if (found && lo < hi)
+    {
+        result.base = (void *)lo;
+        result.size = (size_t)(hi - lo);
+    }
+    return result;
 }
 
 static ModuleInfo_t GetEngineModule()
 {
-    g_engineInfo.base = NULL;
-    g_engineInfo.size = 0;
-    dl_iterate_phdr(dl_iterate_callback, NULL);
-    return g_engineInfo;
+    static const char *names[] = {
+        "/engine.so",
+        "/engine_srv.so",
+        NULL
+    };
+
+    for (int i = 0; names[i]; i++)
+    {
+        ModuleInfo_t info = GetEngineModuleFromMaps(names[i]);
+        if (info.base && info.size)
+            return info;
+    }
+
+    ModuleInfo_t empty;
+    empty.base = NULL;
+    empty.size = 0;
+    return empty;
 }
 
 #endif
